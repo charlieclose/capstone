@@ -1,0 +1,234 @@
+---
+title: "Data Science Capstone: Milestone Report"
+author: "Charlie Close"
+date: "December 29, 2015"
+output: html_document
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(RWeka)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r echo=FALSE}
+build_ngrams <- function(x, n){
+    tw <- NGramTokenizer(x, Weka_control(min=n, max=n))
+    
+    tbl <- table(tw)
+    tbl <- sort(tbl, decreasing=TRUE)
+    ngrams_df <- data.frame(name=names(tbl), count=as.numeric(tbl))
+    
+    }
+```
+
+
+```{r echo=FALSE}
+    tweets <- readLines("./final/en_US/en_US.twitter.txt", n=25000)
+    news <- readLines("./final/en_US/en_US.news.txt", n=25000)
+    blogs <- readLines("./final/en_US/en_US.blogs.txt", n=25000)
+
+    tweets <- tolower(tweets)
+    news <- tolower(news)
+    blogs <- tolower(blogs)
+
+    tweets <- gsub("[^a-z ]", "", tweets)
+    news <- gsub("[^a-z ]", "", news)
+    blogs <- gsub("[^a-z ]", "", blogs)
+
+    text <- c(tweets, news, blogs)
+    text <- tolower(text)
+
+    
+    ngrams_1g <- build_ngrams(text, 1)
+    
+    total_1g <- sum(ngrams_1g$count)
+    
+    
+    ngrams_1g <- ngrams_1g%>%mutate(pct = 100.0 * count/total_1g)
+    ngrams_1g$rank = 1:nrow(ngrams_1g)
+    ngrams_1g$cumpct = cumsum(ngrams_1g$pct)
+    ngram_1g_count <- nrow(ngrams_1g)
+    
+    xintercept_1g <- (ngrams_1g%>%filter(cumpct>=90.0))[1,]$rank
+    yintercept_1g <- 90.0
+    
+    
+    
+    plot_1g <- ggplot(data=ngrams_1g, aes(x=rank, y=cumpct)) + geom_line(size=0.75) + geom_hline(yintercept=yintercept_1g, color="red", size=0.25) + geom_vline(xintercept=xintercept_1g, color="red", size=0.25) + scale_x_continuous(breaks=c(seq(0, max(ngrams_1g$count), by=25000), xintercept_1g)) + scale_y_continuous(breaks=c(seq(0, max(ngrams_1g$cumpct), by=25), yintercept_1g)) + labs(x="One-Gram Rank", y="Cumulative Percent", title="How Many One-Grams (words) to Get 90% Coverage?")
+
+
+###
+
+    ngrams_2g <- build_ngrams(text, 2)
+    total_2g <- sum(ngrams_2g$count)
+    
+    ngrams_2g <- ngrams_2g%>%mutate(pct = 100.0 * count/total_2g)
+    ngrams_2g$rank = 1:nrow(ngrams_2g)
+    ngrams_2g$cumpct = cumsum(ngrams_2g$pct)
+    ngram_2g_count <- nrow(ngrams_2g)
+    
+    xintercept_2g <- (ngrams_2g%>%filter(cumpct>=90.0))[1,]$rank
+    yintercept_2g <- 90.0
+    
+    
+    
+    plot_2g <- ggplot(data=ngrams_2g, aes(x=rank, y=cumpct)) + geom_line(size=0.75) + geom_hline(yintercept=yintercept_2g, color="red", size=0.25) + geom_vline(xintercept=xintercept_2g, color="red", size=0.25) + scale_x_continuous(breaks=c(seq(0, max(ngrams_2g$count), by=200000), xintercept_2g)) + scale_y_continuous(breaks=c(seq(0, max(ngrams_2g$cumpct), by=25), yintercept_2g)) + labs(x="Two-Gram Rank", y="Cumulative Percent", title="How Many Two-Grams to Get 90% Coverage?")
+
+
+```
+
+
+## Excutive Summary
+
+This report looks at the process for creating a word predictor, similar to the software used by smartphones to predict the next word while typing a text or an email.
+
+A big data approach will be used to create the predictor. By analyzing large amounts of typed text, it's hoped that the most common patterns of words and phrases can be found. In other words, a _langauge model_ will be built, and the model will be used to help predict the next word.
+
+The rest of the report focuses on the steps used to perform the analysis and the findings from the analysis. Then it looks looks ahead to expected challenges in building a predictor, and ideas for how to overcome them.
+
+## Approach
+The analysis started with a large collection of publicly-available Enlish-language text: blog posts, news articles, and Twitter tweets. 
+
+File Name        |Size (MB)|Line Count|Word Count
+-----------------|---------|----------|----------
+en_US.twitter.txt|159      |2,360,148|30,374,206
+en_US.news.txt   |196      |1,010,242|34,372,720
+en_US.blogs.txt  |200      |899,288  |37,334,690
+
+It was expected that if enough text was analyzed, the most common words and phrases could be found, and based on these, the next word the user types could be predicted.
+
+For example, if the text shows that the phrase _blue ocean_ is the most common phrase whenever the word _blue_ appears, then _ocean_ would be predicted whenever the user types _blue_.
+
+Likewise, if the most common word after the phrase _mary had a little_ is _lamb_ then _lamb_ would be predicted when the user types _mary had a little_.
+
+To generalize, if the user presents n-1 words of a phrase, then nth word would be predicted based on the most popular phrase starting with the n-1 words.
+
+To implement this approach, it was necessary to analyze the text to collect all the one-word phrases (one-grams), two-word phrases (two-grams), and so on. With these n-grams, it will be possible to build a language model of the most common words and phrases.
+
+
+## Data Subsetting
+The entire corpus of blogs, news, and tweets was too large to use in its entirety. Threfore a subset of 25,000 lines was taken from each of the files, and the three subsets were combined into one corpus for analysis.
+
+## Data Cleaning
+The original data was noisy and inconsistent in multiple ways that would it make it hard to use for prediction. It was necessary to clean the data before analyzing it, including the following steps.
+
+* Lower casing of all text. 
+* Removal of all characters other than a-z and spaces, including all digits and punctuation. 
+
+These steps were helpful because it was believed that keeping the case and punctuation could often interfere with prediction, and rarely help.
+
+These were simplifying steps, intended to make the text more consistent and make it easier to get to a plausible prediction most of the time.
+
+With that said, some of the simplifications had consequences worth pointing out.
+
+**Apostrophes**  
+All apostrophes were removed, which changed all the contractions: _i'm_ to _im_, _they've_ to _theyve_, _can't_ to _cant_, etc. A step will need to be added later to restore as many contractions as possible. The only hard case should be _it's_, since _its_ is also a valid word.
+
+**Twitter hashtags and handles**  
+The characters # and @ have special meaning in Twitter. (Examples #flashfriday and @Beyonce.) Without the characters, the words don't have the same meaning. It was assumed that none of the Twitter hashtags or user handles were common enough that bad predictions would be made by eliminating them.
+
+**Non-English characters**  
+All non-English characters were removed, such a letters with diacrits like umlauts and acute and grave accents. It was assumed that the text was all in English and words with non-English characters would be too rare to help with prediction.
+
+**Emojlis**  
+The data cleaning removed all emojlis. It was assumed that emojlis aren't words and therefore don't need to be predicted.
+
+**Note:** It's obvious that some of the above assumptions aren't completely correct, and a robust predictor would need to deal with these complexities. But the problem has been kept simple for now.
+
+
+## Ngram Creation
+
+The RWeka NGramTokenizer was used to tokenize the text into n-grams. Two points are worth noting.
+
+### Stemming
+Stemming was _not_ applied to the n-grams. For example, _brother_ and _brothers_ were seprate n-grams. If stemming had been used, they would have both been rendered as the single token _brother_. 
+
+Stemming was not applied because the stemmed forms of words are not always valid words and it's not clear how to reliably get from the stemmed form back to the correct form to predict.
+
+### Stop words
+
+Stop words (very common words like "the", "a", "and", "I", etc.) were _not_ removed from the list of n-grams. It's believed that the word predicted by the language model should always be shown to the user, even if it's a stop word.
+
+
+
+## Findings
+
+### The one-grams can be approximated with only a fraction of all the one-grams
+
+There were `r prettyNum(ngram_1g_count, big.mark=",")` total one-grams. However, some words were much more common than others, and only `r prettyNum(xintercept_1g, big.mark=",")`, or `r prettyNum(100 * xintercept_1g/ngram_1g_count, digits=2)`%, of the total were needed to cover 90% of all the words found in the text.
+
+
+
+```{r echo=FALSE}
+print(plot_1g)
+```
+
+**Note:** A histogram of word frequencies could have been used to show the above pattern, but it's believed that this plot is clearer.
+
+This shouldn't be too much of a surprise. Here were the ten most common words.
+
+```{r echo=FALSE}
+print(ngrams_1g[1:10,])
+
+```
+
+This is useful. It means that most of the one-grams can be ignored, which should help make the language model smaller and more efficient.
+
+
+### The two-grams can also be approximated with the 90% fraction of one-grams
+
+There were `r prettyNum(ngram_2g_count, big.mark=",")` two-grams, and it took `r prettyNum(100 * xintercept_2g/ngram_2g_count, digits=2)`% of them to reach 90% coverage.
+
+
+```{r echo=FALSE}
+print(plot_2g)
+```
+
+This is a problem. It's not practical to store so many two-grams.
+
+However, further analysis, not detailed here, showed that roughly 65% of the two-grams had a 90% one-gram in each of its words. Therefore, as a first approximation, the most 90% one-grams can form most of the two-grams, and the other two-grams can be ignored.
+
+```{r echo=FALSE}
+#Yes. Made two-grams and charted the following.
+
+#first    second	counts	Pct.
+#FALSE	FALSE	9311	2.83
+#FALSE	TRUE	53668	16.32
+#TRUE	FALSE	48835	14.85
+#TRUE	TRUE	216947	65.99
+#Total       	328761	
+```
+## Next Steps
+
+Based on the above analysis, it will be possible to create a so-called backoff prediction algorithm. That is, the second word of a two-gram can be predicted based on the user typing the first word. The storage and speed of the algorithm should be good because it needs only a small fraction of the all the words found in the corpus.
+
+That said, further improvements will be needed to create an excellent predictor.
+
+### Three-grams, four-grams, etc.
+
+There is a tradeoff built into the predictor. If it uses only one-grams and two-grams, it will be fast and consume less space, but it will be unsophisticated. If it uses larger phrases (three-grams or more), there will be more grammar and more context, and better predictions will be possible, but such long phrases are less practical because of their greater storage and slower speed.
+
+The cost of storage can be mitigated by storage by storing the unique one-grams only once and mapping them to integer identifiers. Integers require less storage than words. Then two-grams, three-grams, etc. can be built from combining the integers.
+
+### Unknown words
+
+An approach will need to be developed for predicting based on user input that has never been seen. The first thing to try is to predict the most popular one-gram.
+
+### Contractions
+Recall that the data preparation step removed all the apostrophes. A method will need to be created for restoring the apostrophes to words that need them, such as _I'm_, _they're_, and _should've_. 
+
+### Ties
+
+When the language model predicts that two words are equally likely, a method must be created to break the tie. 
+
+### Parts of speech
+
+The ideal prediction algorithm will be able to take into account parts of speech. For example, a verb is likely to be a good prediction after the user enters a noun, and an adjective is likely to be a poor prediction. If the one-grams were tagged with parts of speech, it would be possible to improve predictions over a pure backoff model.
+
+### Testing the model
+
+As improvements are made to the prediction algorithm, they need to be tested against new text. This is like any predictive modelling, where the algorithm is developed against training dataset and then tested agaist a test dataset.
+
+
+
