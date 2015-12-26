@@ -92,9 +92,9 @@ The analysis started with a large collection of publicly-available Enlish-langua
 
 File Name        |Size (MB)|Line Count|Word Count
 -----------------|---------|----------|----------
-en_US.twitter.txt|159      |2,360,148|30,374,206
-en_US.news.txt   |196      |1,010,242|34,372,720
-en_US.blogs.txt  |200      |899,288  |37,334,690
+en_US.twitter.txt|159      |2,360,148 |30,374,206
+en_US.news.txt   |196      |1,010,242 |34,372,720
+en_US.blogs.txt  |200      |899,288   |37,334,690
 
 It was expected that if enough text was analyzed, the most common words and phrases could be found, and based on these, the next word the user types could be predicted.
 
@@ -230,5 +230,6 @@ The ideal prediction algorithm will be able to take into account parts of speech
 
 As improvements are made to the prediction algorithm, they need to be tested against new text. This is like any predictive modelling, where the algorithm is developed against training dataset and then tested agaist a test dataset.
 
+*
 
-
+Note: the code for the report can be found in MilestoneReport.Rmd in Github: https://github.com/charlieclose/capstone
